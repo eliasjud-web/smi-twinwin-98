@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMI Twin-Win 98 Webapp</title>
+<style>
+/* Kundenansicht für Beni & Andri im Look des Excel-Templates (Times New Roman, Hellorange-Überschriften
+   mit Rahmen, Gelb = Ihre Eingabe, Hellblau = Resultat). Layout: links gruppierte Regler, rechts das Ergebnis
+   als Grafik; darunter drei Bild-Karten, Szenario mit Steuern, Verlauf. Bewusst nur ein (helles) Farbschema. */
+:root{
+  color-scheme: light;
+  --bg:#FFFFFF; --ink:#1F3A5F; --txt:#1E2530; --sec:#5A6472; --line:#C9CED6; --card:#F5F6F8;
+  --orange-l:#FAC090; --orange:#F79646; --ko:#C55A11; --aqua-l:#DAEEF3; --yellow:#FFFF00; --band:#FDE9D9;
+  --good:#2E7D32; --bad:#B23A1E; --smi:#8A94A6;
+  --f:"Times New Roman","Liberation Serif",Times,serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--f);font-size:17px;line-height:1.35}
+button,input{font-family:inherit;font-size:inherit;color:inherit}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:14px 32px;display:grid;gap:16px}
+h1,h2,h3{margin:0;text-wrap:balance}
+/* Kopf */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;background:var(--orange-l);border:2px solid #000;padding:10px 16px}
+.top h1{font-size:30px;line-height:1.1;color:#000}
+.top .sub{font-style:italic;color:#000}
+.top .grow{flex:1 1 auto}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.preset{border:1.5px solid #000;background:#fff;padding:6px 14px;cursor:pointer;font-weight:700}
+.preset small{display:block;font-weight:400;font-size:13px;color:var(--sec)}
+.preset[aria-pressed="true"]{background:var(--ink);color:#fff}
+.preset[aria-pressed="true"] small{color:#DCE3EC}
+.amt{display:flex;align-items:center;gap:8px;font-weight:700}
+.amt input{width:130px;background:var(--yellow);border:1px solid #000;padding:4px 8px;text-align:right}
+/* Hauptraster */
+.main{display:grid;grid-template-columns:minmax(0,370px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:960px){.main{grid-template-columns:minmax(0,1fr)}}
+.card{border:1.5px solid #000;background:#fff;padding:14px;min-width:0}
+.hd{background:var(--orange-l);border:1.5px solid #000;padding:5px 10px;font-size:18px;font-weight:700;color:#000;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.hd svg{flex:none}
+/* Regler-Gruppen */
+.controls{display:grid;gap:14px}
+.grp{display:grid;gap:12px}
+.sl{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}
+.sl label{font-weight:700}
+.sl output{background:var(--yellow);border:1px solid #000;padding:1px 10px;min-width:84px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.sl input[type=range]{grid-column:1 / -1;width:100%;height:30px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+.sl input[type=range]::-webkit-slider-runnable-track{height:12px;border:1.5px solid #000;background:var(--trk,var(--aqua-l))}
+.sl input[type=range]::-moz-range-track{height:12px;border:1.5px solid #000;background:var(--trk,var(--aqua-l))}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:24px;height:24px;margin-top:-8px;border-radius:50%;background:var(--ink);border:3px solid #fff;box-shadow:0 0 0 1.5px #000}
+.sl input[type=range]::-moz-range-thumb{box-sizing:border-box;width:24px;height:24px;border-radius:50%;background:var(--ink);border:3px solid #fff;box-shadow:0 0 0 1.5px #000}
+.sl .hint{grid-column:1 / -1;font-size:14px;color:var(--sec);margin-top:-4px;min-height:1.35em}
+.sl .hint.lim{color:var(--bad);font-weight:700}
+.fzleg{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--sec)}
+.fzleg i{flex:none;width:34px;height:12px;border:1.5px solid #000;background:repeating-linear-gradient(135deg,#B9BFC9 0 3px,#fff 3px 7px)}
+.bank{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;background:#EAF3E6;border:1.5px solid var(--good);padding:6px 12px;font-size:16px}
+.bank b{font-size:20px;font-variant-numeric:tabular-nums}
+.bank .ok{color:var(--good);font-weight:700}
+.seg button:disabled{color:#9AA1AD;background:repeating-linear-gradient(135deg,#EDEFF3 0 3px,#fff 3px 7px);cursor:not-allowed}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1.5px solid #000}
+.seg button{border:0;border-right:1px solid #000;background:#fff;padding:8px 4px;cursor:pointer;font-size:15px;line-height:1.15}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+details.grp summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px}
+details.grp summary::before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border:1.5px solid #000;font-weight:700}
+details[open].grp summary::before{content:"−"}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1.5px solid #000;background:#fff;padding:7px 14px;cursor:pointer;font-weight:700}
+.btn.pri{background:var(--orange-l)}
+.btn:hover{filter:brightness(.96)}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+/* Ergebnis */
+.result{display:grid;gap:12px}
+.part{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.pbox{background:var(--aqua-l);border:1.5px solid #000;padding:10px 14px;display:grid;grid-template-columns:auto 1fr;gap:2px 14px;align-items:center}
+.pbox .ar{grid-row:1 / span 2}
+.pbox .lab{font-size:15px;color:var(--sec)}
+.pbox .big{font-size:44px;font-weight:700;line-height:1;color:#000;font-variant-numeric:tabular-nums}
+.facts{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:15px;color:var(--sec)}
+.facts b{color:var(--txt)}
+.warn{background:#FDE2DE;border:1.5px solid var(--bad);padding:8px 12px;font-weight:700;color:var(--bad)}
+.chartbox{position:relative}
+.scroll{overflow-x:auto}
+@media (max-width:640px){.scroll .chartbox{min-width:600px}}
+svg text{font-family:var(--f)}
+.tip{position:absolute;pointer-events:none;background:#fff;border:1.5px solid #000;padding:6px 9px;font-size:15px;display:none;box-shadow:0 2px 6px rgba(0,0,0,.15);white-space:nowrap}
+.leg{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:15px}
+.leg i{display:inline-block;width:26px;height:0;border-top:3px solid;vertical-align:5px;margin-right:6px}
+/* Drei Bild-Karten */
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.dots{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;width:190px;max-width:100%}
+.dots span{aspect-ratio:1;border-radius:50%;border:2px solid var(--ink);background:#fff}
+.dots span.f{background:var(--ko);border-color:var(--ko)}
+.probrow{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+@media (max-width:420px){.probrow{grid-template-columns:1fr}}
+.n1{font-size:36px;font-weight:700;line-height:1;color:var(--ko);white-space:nowrap}
+.n2{font-size:36px;font-weight:700;line-height:1;color:var(--ink);white-space:nowrap}
+.small{font-size:14px;color:var(--sec)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checks li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:center;font-size:16px}
+.ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff}
+.ic.ok{background:var(--good)} .ic.no{background:var(--bad)}
+.total{margin-top:10px;font-weight:700}
+/* Szenario */
+.scen{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr) minmax(0,330px);gap:16px;align-items:start}
+@media (max-width:1100px){.scen{grid-template-columns:minmax(0,1fr)}}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid #000;background:#fff;padding:5px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--orange-l);font-weight:700}
+.tog{display:inline-grid;grid-template-columns:1fr 1fr;border:1.5px solid #000}
+.tog button{border:0;background:#fff;padding:6px 10px;cursor:pointer}
+.tog button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.tog button:disabled{opacity:.45;cursor:not-allowed}
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center}
+@media (max-width:480px){.bar{grid-template-columns:1fr}}
+.bar .nm{font-weight:700;line-height:1.1}
+.bar .nm small{display:block;font-weight:400;font-size:13px;color:var(--sec)}
+.bar .tr{position:relative;height:38px;background:var(--card)}
+.bar .fl{position:absolute;left:0;top:0;bottom:0}
+.bar .vl{position:absolute;top:50%;transform:translateY(-50%);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.story{font-size:16px;background:var(--card);border:1px solid var(--line);padding:8px 12px}
+.tax .wf{display:grid;gap:6px;margin:8px 0}
+.tax .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;font-variant-numeric:tabular-nums}
+.tax .row.tot{border-top:1.5px solid #000;padding-top:6px;font-weight:700;font-size:20px}
+.tax .neg{color:var(--bad);font-weight:700}
+.pill{display:inline-block;border:1.5px solid var(--good);color:var(--good);padding:2px 10px;font-weight:700;font-size:15px}
+.simstats{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:16px;margin:6px 0}
+.foot{font-size:13px;color:var(--sec);border-top:1px solid var(--line);padding-top:8px}
+.seed{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.seed input{width:88px;background:var(--yellow);border:1px solid #000;padding:4px 6px;text-align:right}
+.mcprog{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:8px 0;font-size:15px}
+.pbar{width:min(320px,100%);height:14px;border:1.5px solid #000;background:#fff}
+.pbar i{display:block;height:100%;width:0;background:var(--ink)}
+.mc{display:grid;gap:14px;margin-top:14px}
+.mc>*,.mcbody>*{min-width:0}
+.mcbody{display:grid;gap:14px}
+.mchd{flex-wrap:wrap;justify-content:space-between}
+.mctog{padding:3px 12px;font-size:15px}
+.mct{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px}
+.mct th,.mct td{border:1px solid #000;padding:4px 9px;text-align:right;white-space:nowrap}
+.mct th{background:var(--orange-l);font-weight:700}
+.mct th:first-child,.mct td:first-child,.mct .l{text-align:left}
+.mct td.l{white-space:normal;min-width:240px}
+.mct td.okc{color:var(--good);font-weight:700}
+.mct td.bad{color:var(--bad);font-weight:700}
+.mct tr.key td{background:var(--aqua-l);font-weight:700}
+.mcass{display:grid;gap:5px;font-size:15px;border:1px solid var(--line);background:var(--card);padding:8px 12px}
+.mcass span{display:inline-block;min-width:150px;font-weight:700;margin-right:8px}
+.mctitle{font-size:18px;font-weight:700;margin:0 0 6px}
+.mcnote{font-size:14px;color:var(--sec);margin-top:4px}
+.mcgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px}
+.sw{display:inline-block;width:16px;height:16px;vertical-align:-3px;margin-right:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="grow"><h1>SMI Twin-Win 98</h1><div class="sub">Ihr Produkt live gestalten · indikativ, Stand 12.10.2026</div></div>
+    <div class="presets" role="group" aria-label="Variante" id="presets"></div>
+    <label class="amt" for="amount">Anlage CHF <input id="amount" type="number" min="10000" max="2000000" step="10000" value="200000"></label>
+  </header>
+
+  <div class="main">
+    <!-- Regler, gruppiert -->
+    <div class="controls">
+      <section class="card grp" aria-labelledby="g1">
+        <h2 class="hd" id="g1"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" fill="none" stroke="#000" stroke-width="2"/></svg>Schutz</h2>
+        <div class="sl"><label for="ks">Kapitalschutz</label><output id="o_ks"></output><input id="ks" type="range" min="90" max="100" step="1"><span class="hint" id="h_ks"></span></div>
+        <div class="sl"><label for="t">Laufzeit</label><output id="o_t"></output><input id="t" type="range" min="2" max="5" step="1"><span class="hint" id="h_t"></span></div>
+      </section>
+      <section class="card grp" aria-labelledby="g2">
+        <h2 class="hd" id="g2"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 18h18" stroke="#000" stroke-width="2.5"/><path d="M4 13l5-3 4 2 7-4" fill="none" stroke="#000" stroke-width="2"/></svg>Korridor</h2>
+        <svg id="mini" viewBox="0 0 340 74" width="100%" role="img" aria-label="Korridor mit Benis und Andris Szenario"></svg>
+        <div class="sl"><label for="l">Untere Grenze</label><output id="o_l"></output><input id="l" type="range" min="50" max="90" step="1"><span class="hint" id="h_l"></span></div>
+        <div class="sl"><label for="u">Obere Grenze</label><output id="o_u"></output><input id="u" type="range" min="110" max="170" step="1"><span class="hint" id="h_u"></span></div>
+      </section>
+      <section class="card grp" aria-labelledby="g3">
+        <h2 class="hd" id="g3"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M5 7l-3 7h6zM19 7l-3 7h6z" fill="none" stroke="#000" stroke-width="2"/></svg>Gewichtung</h2>
+        <div class="seg" role="group" aria-label="Gewichtung der Beteiligung" id="wseg">
+          <button type="button" data-w="beni">mehr nach unten<br><small>Beni</small></button>
+          <button type="button" data-w="even">gleich<br><small>beide</small></button>
+          <button type="button" data-w="andri">mehr nach oben<br><small>Andri</small></button>
+        </div>
+      </section>
+      <details class="card grp" id="more">
+        <summary>Mehr Einstellungen</summary>
+        <div class="sl"><label for="rb">Trostpreis bei Grenze berührt</label><output id="o_rb"></output><input id="rb" type="range" min="0" max="5" step="0.5"><span class="hint" id="h_rb"></span></div>
+        <div class="sl"><label>Grenze zählt</label><span></span>
+          <div class="tog" role="group" aria-label="Beobachtung" style="grid-column:1 / -1"><button type="button" id="obs_d">nur Tagesschluss</button><button type="button" id="obs_c">jederzeit</button></div></div>
+      </details>
+      <div class="btnrow"><button class="btn" type="button" id="reset">Zurück zu Balance</button></div>
+    </div>
+
+    <!-- Ergebnis -->
+    <section class="card result" aria-labelledby="r1">
+      <h2 class="hd" id="r1">Ihre Beteiligung an der Bewegung des SMI</h2>
+      <div class="part" id="part"></div>
+      <div id="warn"></div>
+      <div class="bank" id="bank"></div>
+      <div class="facts" id="facts"></div>
+      <div class="leg" id="leg"></div>
+      <div class="scroll"><div class="chartbox" id="pbox"><svg id="payoff" viewBox="0 0 860 400" width="100%" role="img" aria-label="Rückzahlung bei Verfall"></svg><div class="tip" id="tip"></div></div></div>
+    </section>
+  </div>
+
+  <div class="three">
+    <section class="card" aria-labelledby="c1">
+      <h2 class="hd" id="c1">Wie oft wird eine Grenze berührt?</h2>
+      <div class="probrow"><div class="dots" id="dots" role="img"></div><div id="probtxt"></div></div>
+    </section>
+    <section class="card" aria-labelledby="c2">
+      <h2 class="hd" id="c2">Schlechtester Fall</h2>
+      <svg id="gauge" viewBox="0 0 360 120" width="100%" role="img" aria-label="Schlechtester Fall gegen Schmerzgrenze"></svg>
+      <div id="gtxt"></div>
+    </section>
+    <section class="card" aria-labelledby="c3">
+      <h2 class="hd" id="c3">Ihr Pflichtenheft</h2>
+      <ul class="checks" id="checks"></ul>
+      <div class="total" id="ctot"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="s1">
+    <h2 class="hd" id="s1"><span>Wo steht der SMI bei Verfall im Oktober <span id="yend">2030</span>?</span></h2>
+    <div class="scen">
+      <div class="grp">
+        <div class="chips" role="group" aria-label="Szenario" id="chips"></div>
+        <div class="sl"><label for="x">SMI bei Verfall</label><output id="o_x"></output><input id="x" type="range" min="40" max="170" step="1" value="75"></div>
+        <div><b>Grenze unterwegs berührt?</b><br><div class="tog" role="group" aria-label="Grenze berührt" style="margin-top:6px"><button type="button" id="ko_n">Nein</button><button type="button" id="ko_y">Ja</button></div></div>
+        <div class="story" id="story"></div>
+      </div>
+      <div>
+        <div class="small" style="margin-bottom:6px">Was Sie nach Steuern zurückbekommen</div>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="tax" aria-labelledby="tx">
+        <h3 id="tx" style="font-size:18px">Steuern</h3>
+        <div class="wf" id="wf"></div>
+        <div><span class="pill">Gewinn aus der Bewegung: steuerfrei</span></div>
+        <div class="sl" style="margin-top:10px"><label for="tr">Ihr Grenzsteuersatz</label><output id="o_tr"></output><input id="tr" type="range" min="0" max="45" step="1" value="38"><span class="hint" id="h_tax"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="v1">
+    <h2 class="hd" id="v1">Mögliche Verläufe und Monte-Carlo-Simulation</h2>
+    <div class="btnrow"><button class="btn pri" type="button" id="sim1">▶ Einen Verlauf abspielen</button><button class="btn" type="button" id="sim100">100 Verläufe</button><button class="btn pri" type="button" id="mcrun">200'000 Verläufe (Monte-Carlo)</button><label class="seed" for="mcseed">Seed <input id="mcseed" type="number" value="2026" min="1" step="1"></label><button class="btn" type="button" id="simr">Neu starten</button></div>
+    <div class="mcprog" id="mcprog" hidden><div class="pbar"><i id="mcbar"></i></div><span id="mcpt"></span></div>
+    <div class="simstats" id="simstats"></div>
+    <div class="leg"><span><i style="border-color:var(--ink)"></i>bleibt im Korridor</span><span><i style="border-color:var(--ko)"></i>berührt eine Grenze</span></div>
+    <div class="scroll"><div class="chartbox"><svg id="sim" viewBox="0 0 1060 330" width="100%" role="img" aria-label="Simulierter SMI-Verlauf"></svg></div></div>
+    <div class="mc" id="mc" hidden></div>
+  </section>
+
+  <div class="foot">Indikativ, Pricing 12.10.2026 (SMI 13'864). Beteiligung = faire Beteiligung bei 1 % Marge, auf 5 % abgerundet. Die Regler halten an, bevor die Marge der Bank unter 1 % fiele (nie negativ). Schwankung und Dividende gelten je Laufzeit und sind aus Eurex-Optionen auf den SMI abgeleitet (Strike 13'800, Verfall Dez. 2028 / 2029 / 2030; Dividende aus der Put-Call-Parität): 2 Jahre 14.5 % / 0.80 %, 3 Jahre 14.7 % / 0.42 %, 4 Jahre 14.3 % / 1.66 %. Für 5 Jahre gibt es keine Option, dort gelten die Werte von 4 Jahren. Steuerbarer Zinsanteil: Bondfloor mit CHF-Swapsatz diskontiert (wie Termsheet), Steuersatz verstellbar. Fiktive Emittentin Platte 14 Structured Solutions AG, keine Einlagensicherung. Rollenspiel UZH «Strukturierte Produkte», keine Anlage- oder Steuerberatung.</div>
+</div>
+
+<script>
+"use strict";
+/* ---------------- Marktdaten (wie Excel «TwinWin_SMI.xlsx», Bewertungsdatum 12.10.2026) ----------------
+   Je Laufzeit eine eigene Vola und Dividende aus den Eurex-Optionen auf den SMI (OSMI), Strike 13'800. Die Dividende q ist
+   in den Optionspreisen enthalten und wird aus der Put-Call-Parität abgeleitet (auf 0.01 % gerundet); die Vola σ ist das
+   Mittel der impliziten Volas von Call und Put bei diesem q.
+     2 Jahre = Verfall 15.12.2028:  Call 1'137.40 / Put 1'185.30 (Mitte Bid/Ask)   → q 0.80 %, σ 14.479 %
+     3 Jahre = Verfall 21.12.2029:  Call 1'480.80 / Put 1'365.50 (Settlement)      → q 0.42 %, σ 14.687 %
+     4 Jahre = Verfall 20.12.2030:  Call 1'287.00 / Put 1'812.70 (Settlement)      → q 1.66 %, σ 14.299 %  (wie im Excel)
+     5 Jahre: keine Option vorhanden, Werte wie 4 Jahre.  Zinskurve CHF SARON-OIS (bluegamma, 13.10.2026). */
+const MKT={S0:13863.69,spread:0.006,beta:0.5826,days:252,erp:0.04,
+  zT:[1,2,3,4,5],zA:[0.0017,0.0041,0.0053,0.0059,0.0063],
+  term:{2:{q:0.0080,sigma:0.14478554346343578},3:{q:0.0042,sigma:0.1468716227484919},4:{q:0.0166,sigma:0.1429872089311186}}};
+const volOf=T=>MKT.term[Math.max(2,Math.min(4,Math.round(T)))];     // Vola und Dividende je Laufzeit (5 Jahre wie 4 Jahre)
+const W={beni:[0.65,0.90],even:[1,1],andri:[1.00,0.65]};       // Gewichtung rauf : runter
+const PRESETS=[
+  {id:"bal",name:"Balance",sub:"Empfehlung",KS:0.98,T:4,L:0.70,U:1.45,w:"even",R:0,daily:true},
+  {id:"sich",name:"Sicherheit",sub:"100 % Schutz",KS:1.00,T:5,L:0.70,U:1.50,w:"even",R:0,daily:true},
+  {id:"rend",name:"Rendite",sub:"mehr Beteiligung",KS:0.95,T:4,L:0.70,U:1.50,w:"even",R:0,daily:true},
+];
+const SCEN=[{x:0.75,t:"Beni −25 %"},{x:1.30,t:"Andri +30 %"},{x:1.00,t:"unverändert"},{x:0.65,t:"Crash −35 %"},{x:1.50,t:"Boom +50 %"}];
+const LIMIT=10000;                                               // Benis Schmerzgrenze in CHF
+
+/* ---------------- Bewertung (identisch mit Excel/Python) ---------------- */
+function Ncdf(x){const a=Math.abs(x);let c;if(a>37)c=0;else{const e=Math.exp(-a*a/2);if(a<7.07106781186547){let b=0.0352624965998911*a+0.700383064443688;b=b*a+6.37396220353165;b=b*a+33.912866078383;b=b*a+112.079291497871;b=b*a+221.213596169931;b=b*a+220.206867912376;c=e*b;b=0.0883883476483184*a+1.75566716318264;b=b*a+16.064177579207;b=b*a+86.7807322029461;b=b*a+296.564248779674;b=b*a+637.333633378831;b=b*a+793.826512519948;b=b*a+440.413735824752;c=c/b}else{let b=a+0.65;b=a+4/b;b=a+3/b;b=a+2/b;b=a+1/b;c=e/b/2.506628274631}}return x>0?1-c:c}
+function rCont(t){const r=MKT.zA.map(z=>Math.log(1+z)),T=MKT.zT;if(t<=T[0])return r[0];if(t>=T[T.length-1])return r[r.length-1];for(let i=0;i<T.length-1;i++)if(t<=T[i+1])return r[i]+(r[i+1]-r[i])*(t-T[i])/(T[i+1]-T[i])}
+/* Barriere-Optionen wie im Excel (Blatt «Hilfsrechnung»): Einfach-Barriere-Formeln (Reiner/Rubinstein, Hull),
+   DKO = Down-and-out + Up-and-out − Plain Vanilla; alles normiert auf S = X = 1 (Anteil vom Startkurs). */
+function touch(L,U,nu,s,T){const st=s*Math.sqrt(T),pd=Ncdf((Math.log(L)-nu*T)/st)+Math.pow(L,2*nu/(s*s))*Ncdf((Math.log(L)+nu*T)/st),
+  pu=Ncdf((-Math.log(U)+nu*T)/st)+Math.pow(U,2*nu/(s*s))*Ncdf((-Math.log(U)-nu*T)/st);return 1-pd-pu}
+/* Sicherheitsnetz: Die Einfach-Barriere-Näherung lässt Pfade weg, die beide Grenzen berühren. Bei sehr engen Korridoren
+   unterschätzt sie deshalb die Optionswerte (die Marge der Bank würde zu hoch ausgewiesen). Dann rechnet die App mit der
+   exakten Reihenformel (Ikeda-Kunitomo). Bei Balance, Sicherheit und Rendite weicht die Näherung um weniger als 0.03 % ab. */
+function A(k1,k2,e,L,U,T,b,s){const st=s*Math.sqrt(T),mu=2*b/(s*s)+1,sh=e===2?st:0,dr=(b+s*s/2)*T;let tot=0;for(let n=-10;n<=10;n++){const d=k=>(Math.log(Math.pow(U,2*n)/(k*Math.pow(L,2*n)))+dr)/st-sh,f=k=>(Math.log(Math.pow(L,2*n+2)/(k*Math.pow(U,2*n)))+dr)/st-sh;tot+=Math.pow(U/L,n*(mu-e))*(Ncdf(d(k1))-Ncdf(d(k2)))-Math.pow(Math.pow(L,n+1)/Math.pow(U,n),mu-e)*(Ncdf(f(k1))-Ncdf(f(k2)))}return tot}
+function blocks(p){
+  const T=p.T,V=volOf(T),s=V.sigma,q=V.q,r=rCont(T),st=s*Math.sqrt(T),lam=(r-q+s*s/2)/(s*s),dq=Math.exp(-q*T),dr=Math.exp(-r*T);
+  const c=p.daily?MKT.beta*s*Math.sqrt(1/MKT.days):0,L=p.L*Math.exp(-c),U=p.U*Math.exp(c);       // BGK-Korrektur für Tagesschluss
+  const d1=(r-q+s*s/2)*T/st,d2=d1-st,vc=dq*Ncdf(d1)-dr*Ncdf(d2),vp=dr*Ncdf(-d2)-dq*Ncdf(-d1);   // Plain Vanilla
+  const aux=H=>({x1:Math.log(1/H)/st+lam*st,y:Math.log(H*H)/st+lam*st,y1:Math.log(H)/st+lam*st,a:Math.pow(H,2*lam),b:Math.pow(H,2*lam-2)});
+  const D=aux(L),Uu=aux(U);
+  const ciD=dq*D.a*Ncdf(D.y)-dr*D.b*Ncdf(D.y-st);                                                  // Knock-in Call, untere Barriere
+  const ciU=dq*Ncdf(Uu.x1)-dr*Ncdf(Uu.x1-st)-dq*Uu.a*(Ncdf(-Uu.y)-Ncdf(-Uu.y1))+dr*Uu.b*(Ncdf(-Uu.y+st)-Ncdf(-Uu.y1+st)); // obere
+  const piD=-dq*Ncdf(-D.x1)+dr*Ncdf(-D.x1+st)+dq*D.a*(Ncdf(D.y)-Ncdf(D.y1))-dr*D.b*(Ncdf(D.y-st)-Ncdf(D.y1-st));          // Knock-in Put, untere
+  const piU=-dq*Uu.a*Ncdf(-Uu.y)+dr*Uu.b*Ncdf(-Uu.y+st);                                           // obere
+  let call=Math.max(0,vc-ciD-ciU), put=Math.max(0,vp-piD-piU);                                      // = (V−KI_D) + (V−KI_U) − V
+  let Q=touch(L,U,r-q-s*s/2,s,T), Qr=touch(L,U,r-q+MKT.erp-s*s/2,s,T);                             // Überleben: risikoneutral / realistisch
+  const b=r-q, xc=dq*A(1,U,0,L,U,T,b,s)-dr*A(1,U,2,L,U,T,b,s), xp=dr*A(L,1,2,L,U,T,b,s)-dq*A(L,1,0,L,U,T,b,s);
+  const xQ=A(L,U,2,L,U,T,b,s), xQr=A(L,U,2,L,U,T,b+MKT.erp,s);
+  if(xc+xp-call-put>0.0005||Math.abs(xQ-Q)>0.005||Math.abs(xQr-Qr)>0.005){call=xc;put=xp;Q=xQ;Qr=xQr}
+  const zcb=p.KS*Math.exp(-(r+MKT.spread)*T), rebate=p.R*dr*(1-Q);
+  const zA=Math.exp(r)-1, bf=p.KS/Math.pow(1+zA,T), taxable=Math.max(0,p.KS-bf);
+  return {call,put,Q,Qr,zcb,rebate,taxable,r};
+}
+// Produkt aus den Kundenparametern: Beteiligung = faire Beteiligung bei 1 % Marge, auf 5 % abgerundet
+function product(p){
+  const bl=blocks(p), [wu,wd]=W[p.w], budget=1-0.01-bl.zcb-bl.rebate, k=budget/(wu*bl.call+wd*bl.put);
+  const raw=v=>Math.floor(v*20+1e-9)/20, r5=v=>Math.max(0,Math.min(2,raw(v)));
+  const Pu=k>0?r5(k*wu):0, Pd=k>0?r5(k*wd):0;
+  const capped=k>0&&(raw(k*wu)>2+1e-9||raw(k*wd)>2+1e-9);          // faire Beteiligung läge über 200 %
+  const fv=bl.zcb+Pu*bl.call+Pd*bl.put+bl.rebate;
+  return {...p,...bl,Pu,Pd,fv,marge:1-fv,capped,nobudget:k<=0.05};
+}
+// Zulässige Zone: Marge der Bank nie unter 1 % (also nie negativ), Beteiligung nicht über 200 % und auf beiden Seiten mindestens 10 %
+const MARGE_MIN=0.01, PART_MIN=0.10;
+const okP=q=>q.marge>=MARGE_MIN-1e-9&&!q.capped&&q.Pu>=PART_MIN-1e-9&&q.Pd>=PART_MIN-1e-9;
+function why(q){
+  if(q.marge<MARGE_MIN-1e-9) return "";
+  if(q.capped) return "Weiter geht es nicht: Die Beteiligung läge über 200 %. So einen Preis gibt es nicht.";
+  return "Weiter geht es nicht: Es bliebe kaum Beteiligung (unter 10 %).";
+}
+function payoff(p,x,ko){ if(ko||x<=p.L||x>=p.U) return p.KS+p.R; return p.KS+p.Pu*Math.max(x-1,0)+p.Pd*Math.max(1-x,0); }
+
+/* ---------------- Format ---------------- */
+const fN=v=>Math.round(v).toLocaleString("de-CH").replace(/[’’]/g,"'");
+const fC=v=>"CHF "+(v<0?"−":"")+fN(Math.abs(v));
+const fP=(v,d=0)=>(v*100).toFixed(d).replace("-","−")+" %";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+
+/* ---------------- Zustand ---------------- */
+const st={p:{...PRESETS[0]},amount:200000,x:0.75,ko:false,tax:0.38};
+const same=(a,b)=>["KS","T","L","U","R"].every(k=>Math.abs(a[k]-b[k])<1e-9)&&a.w===b.w&&a.daily===b.daily;
+
+/* ---------------- Steuerelemente ---------------- */
+$("presets").innerHTML=PRESETS.map(p=>`<button type="button" class="preset" data-id="${p.id}">${esc(p.name)}<small>${esc(p.sub)}</small></button>`).join("");
+$("presets").addEventListener("click",e=>{const b=e.target.closest(".preset");if(!b)return;st.p={...PRESETS.find(p=>p.id===b.dataset.id)};sync();render()});
+$("chips").innerHTML=SCEN.map((s,i)=>`<button type="button" class="chip" data-i="${i}">${esc(s.t)}</button>`).join("");
+$("chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;st.x=SCEN[+b.dataset.i].x;st.ko=false;$("x").value=Math.round(st.x*100);render()});
+const SL={ks:["KS",100],t:["T",1],l:["L",100],u:["U",100],rb:["R",100]};
+const SLD={ks:{min:90,max:100,step:1},t:{min:2,max:5,step:1},l:{min:50,max:90,step:1},u:{min:110,max:170,step:1},rb:{min:0,max:5,step:0.5}};
+const okAt=(id,v)=>okP(product({...st.p,[SL[id][0]]:v/SL[id][1]}));
+const whyAt=(id,v)=>why(product({...st.p,[SL[id][0]]:v/SL[id][1]}));
+let msg={id:null,txt:"",tm:0};
+function flash(id,txt){clearTimeout(msg.tm);msg={id,txt,tm:setTimeout(()=>{msg={id:null,txt:"",tm:0};hints()},4500)}}
+for(const id in SL){$(id).addEventListener("input",e=>{
+  const[f,sc]=SL[id],d=SLD[id],raw=+e.target.value,cur=Math.round(st.p[f]*sc*100)/100;
+  let v=raw;                                           // über die Sperrgrenze hinaus lässt sich der Regler nicht ziehen
+  while(!okAt(id,v)&&Math.abs(v-cur)>1e-9){v=Math.round((v+(raw>cur?-d.step:d.step))*100)/100}
+  if(Math.abs(v-raw)>1e-9){e.target.value=v;const w=whyAt(id,raw);if(w)flash(id,w)}
+  st.p[f]=v/sc;render()})}
+$("wseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.disabled)return;st.p.w=b.dataset.w;render()});
+$("obs_d").addEventListener("click",e=>{if(e.currentTarget.disabled)return;st.p.daily=true;render()});
+$("obs_c").addEventListener("click",e=>{if(e.currentTarget.disabled)return;st.p.daily=false;render()});
+$("reset").addEventListener("click",()=>{st.p={...PRESETS[0]};sync();render()});
+$("amount").addEventListener("input",e=>{const v=+e.target.value;if(v>0){st.amount=v;render()}});
+$("x").addEventListener("input",e=>{st.x=+e.target.value/100;render()});
+$("ko_n").addEventListener("click",()=>{st.ko=false;render()});
+$("ko_y").addEventListener("click",()=>{st.ko=true;render()});
+$("tr").addEventListener("input",e=>{st.tax=+e.target.value/100;render()});
+function sync(){for(const id in SL){const[f,sc]=SL[id];$(id).value=+(st.p[f]*sc).toFixed(2)}}
+
+/* ---------------- Rendering ---------------- */
+let P;
+function hints(){
+  const p=st.p,Am=st.amount,T=p.T,H={ks:"Sie erhalten sicher "+fC(Am*p.KS)+" zurück",t:"Rückzahlung Oktober "+(2026+T),l:"",u:"",rb:""};
+  for(const id in H){const el=$("h_"+id);if(!el)continue;const m=msg.id===id;el.textContent=m?msg.txt:H[id];el.classList.toggle("lim",m)}
+}
+function render(){
+  const p=P=product(st.p), Am=st.amount, T=p.T, yEnd=2026+T;
+  // Regler-Anzeigen
+  $("o_ks").textContent=fP(p.KS); $("o_t").textContent=T+(T===1?" Jahr":" Jahre"); hints();
+  for(const id in SL){const d=SLD[id],n=Math.round((d.max-d.min)/d.step)+1,oks=[];for(let i=0;i<n;i++)oks.push(okAt(id,d.min+i*d.step));
+    const pos=i=>`calc(12px + (100% - 24px) * ${(i/(n-1)).toFixed(4)})`,col=b=>b?"var(--aqua-l)":"transparent",stops=[];
+    for(let i=0;i<n;i++){const a=i===0?"0px":pos(i-.5),b=i===n-1?"100%":pos(i+.5);stops.push(`${col(oks[i])} ${a}`,`${col(oks[i])} ${b}`)}
+    $(id).style.setProperty("--trk",`linear-gradient(to right,${stops.join(",")}),repeating-linear-gradient(135deg,#B9BFC9 0 3px,#fff 3px 7px)`)}
+  document.querySelectorAll("#wseg button").forEach(b=>{const q=product({...st.p,w:b.dataset.w}),ok=okP(q);b.disabled=!ok;b.title=ok?"":"Mit dieser Gewichtung wäre die Marge der Bank zu klein"});
+  [["obs_d",true],["obs_c",false]].forEach(([id,dy])=>{const ok=okP(product({...st.p,daily:dy}));$(id).disabled=!ok;$(id).title=ok?"":"Mit dieser Einstellung wäre die Marge der Bank zu klein"});
+  $("o_l").textContent=fP(p.L); $("o_u").textContent=fP(p.U); $("o_rb").textContent=p.R>0?fP(p.R,1):"keiner";
+  const mg=Am*p.marge;
+  $("obs_d").setAttribute("aria-pressed",p.daily); $("obs_c").setAttribute("aria-pressed",!p.daily);
+  document.querySelectorAll("#wseg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.w===p.w));
+  document.querySelectorAll("#presets .preset").forEach(b=>b.setAttribute("aria-pressed",same(st.p,PRESETS.find(q=>q.id===b.dataset.id))));
+  $("yend").textContent=yEnd;
+  drawMini(p);
+  // Beteiligung
+  const arrow=(up)=>`<svg class="ar" width="40" height="56" viewBox="0 0 40 56" aria-hidden="true"><path d="${up?"M20 2 38 26H27v28H13V26H2z":"M20 54 38 30H27V2H13v28H2z"}" fill="${up?"#1F3A5F":"#C55A11"}"/></svg>`;
+  $("part").innerHTML=`<div class="pbox">${arrow(true)}<span class="lab">wenn der SMI steigt</span><span class="big">${fP(p.Pu)}</span></div>
+    <div class="pbox">${arrow(false)}<span class="lab">wenn der SMI fällt</span><span class="big">${fP(p.Pd)}</span></div>`;
+  $("warn").innerHTML=okP(p)?"":`<div class="warn">Diese Kombination ist nicht zulässig. Bitte «Zurück zu Balance» wählen.</div>`;
+  $("bank").innerHTML=`<span>Marge der Bank</span><b>${fC(mg)}</b><span>(${fP(p.marge,2)} · ${fP(p.marge/T,2)} pro Jahr)</span>`;
+  $("facts").innerHTML=`<span>Schutz <b>${fP(p.KS)}</b></span><span>Laufzeit <b>${T} J.</b></span><span>Korridor <b>${fP(p.L)} – ${fP(p.U)}</b></span>`;
+  drawPayoff(p);
+  // Wahrscheinlichkeit (realistisch)
+  const nko=Math.round((1-p.Qr)*100), nkoV=Math.round((1-p.Q)*100);
+  $("dots").innerHTML=Array.from({length:100},(_,i)=>`<span class="${i<nko?"f":""}"></span>`).join("");
+  $("dots").setAttribute("aria-label",nko+" von 100 Fällen: Grenze berührt");
+  $("probtxt").innerHTML=`<div class="n1">${nko} von 100</div><div>Grenze berührt → ${fC(Am*(p.KS+p.R))}</div>
+    <div class="n2" style="margin-top:12px">${100-nko} von 100</div><div>Korridor hält → Twin-Win zahlt dazu</div>
+    <div class="small" style="margin-top:8px">vorsichtig gerechnet: ${nkoV} von 100</div>`;
+  // Schlechtester Fall
+  const loss=Am*(1-p.KS-p.R), taxAmt=Am*p.taxable*st.tax, worst=Math.max(0,loss)+taxAmt;
+  drawGauge(Math.max(0,loss),taxAmt);
+  $("gtxt").innerHTML=`<div style="font-size:28px;font-weight:700;color:${worst>LIMIT?"var(--bad)":"#000"}">${fC(-worst)}</div><div class="small">nach Steuern, wenn eine Grenze berührt wird · Ihre Schmerzgrenze ${fC(LIMIT)}</div>`;
+  // Pflichtenheft
+  const chk=[
+    ["Verlust höchstens CHF 10'000 (nach Steuern)", worst<=LIMIT],
+    ["Chance in jede Richtung", p.Pu>0&&p.Pd>0],
+    ["Rund 4 Jahre (bis nach Benis Pensionierung)", T===4],
+    ["Kosten max. 1.5 %", p.marge<=0.015&&p.marge>=0],
+  ];
+  const nOk=chk.filter(c=>c[1]).length;
+  $("checks").innerHTML=chk.map(([t,ok])=>`<li><span class="ic ${ok?"ok":"no"}" aria-label="${ok?"erfüllt":"nicht erfüllt"}">${ok?"✓":"✗"}</span><span>${t}</span></li>`).join("");
+  $("ctot").textContent=nOk+" von "+chk.length+" erfüllt"+(nOk===chk.length?" – passt zu Ihren Wünschen":"");
+  // Szenario
+  const x=st.x, out=x<=p.L||x>=p.U, ko=st.ko||out;
+  $("o_x").textContent=(x>=1?"+":"−")+Math.round(Math.abs(x-1)*100)+" %";
+  $("ko_n").setAttribute("aria-pressed",!ko); $("ko_y").setAttribute("aria-pressed",ko); $("ko_n").disabled=out;
+  document.querySelectorAll("#chips .chip").forEach(b=>b.setAttribute("aria-pressed",Math.abs(SCEN[+b.dataset.i].x-x)<1e-9&&!st.ko));
+  const pay=Am*payoff(p,x,ko), net=pay-taxAmt, smi=Am*x;
+  const mx=Math.max(net,smi,Am)*1.02;
+  const bar=(nm,sub,v,col,inside)=>{const w=v/mx*100,inn=w>58;return `<div class="bar"><div class="nm">${nm}<small>${sub}</small></div><div class="tr"><div class="fl" style="width:${w}%;background:${col}"></div><span class="vl" style="${inn?`right:calc(${100-w}% + 10px);color:${inside}`:`left:calc(${w}% + 8px);color:#000`}">${fC(v)}</span></div></div>`};
+  $("bars").innerHTML=bar("SMI Twin-Win 98","nach Steuern",net,"var(--ink)","#fff")+bar("SMI direkt","ohne Dividenden",smi,"var(--smi)","#000")+bar("Konto","0 % Zins",Am,"#D6DAE0","#000");
+  const mv=Math.round(Math.abs(x-1)*100);
+  $("story").innerHTML= ko? `Grenze berührt: Sie erhalten <b>${fC(Am*(p.KS+p.R))}</b>.`
+    : Math.abs(x-1)<1e-9? `Keine Bewegung: Sie erhalten <b>${fC(Am*p.KS)}</b>.`
+    : `SMI ${x>1?"+":"−"}${mv} %, Korridor gehalten: <b>${fC(pay)}</b>${x<1?" – auch bei fallenden Kursen":""}.`;
+  $("wf").innerHTML=`<div class="row"><span>Rückzahlung</span><span>${fC(pay)}</span></div>
+    <div class="row"><span>Steuer auf den Zinsanteil</span><span class="neg">${fC(-taxAmt)}</span></div>
+    <div class="row tot"><span>Nach Steuern</span><span>${fC(net)}</span></div>`;
+  $("o_tr").textContent=fP(st.tax); $("h_tax").textContent="Steuerbar ist nur der Zinsanteil von "+fC(Am*p.taxable)+", fällig "+yEnd;
+  drawSimFrame();
+  renderMC();
+}
+
+/* ---------------- Mini-Korridor bei den Reglern ---------------- */
+function drawMini(p){
+  const x=v=>14+(v-0.45)/(1.75-0.45)*312, svg=$("mini");
+  const pin=(v,lab,col,up)=>{const inC=v>p.L&&v<p.U;return `<circle cx="${x(v)}" cy="38" r="7" fill="${inC?col:"#fff"}" stroke="${col}" stroke-width="2.5"/><text x="${x(v)}" y="${up?20:66}" text-anchor="middle" font-size="15" font-weight="700" fill="${inC?col:"#B23A1E"}">${lab}${inC?" ✓":" ✗"}</text>`};
+  svg.innerHTML=`<rect x="${x(p.L)}" y="26" width="${x(p.U)-x(p.L)}" height="24" fill="var(--band)" stroke="#000" stroke-width="1"/>
+    <line x1="${x(p.L)}" x2="${x(p.L)}" y1="20" y2="56" stroke="#000" stroke-width="3"/><line x1="${x(p.U)}" x2="${x(p.U)}" y1="20" y2="56" stroke="#000" stroke-width="3"/>
+    <line x1="${x(1)}" x2="${x(1)}" y1="28" y2="48" stroke="#5A6472" stroke-width="2" stroke-dasharray="3 3"/>
+    ${pin(0.75,"Beni −25 %","#C55A11",true)}${pin(1.30,"Andri +30 %","#1F3A5F",false)}`;
+}
+
+/* ---------------- Auszahlungsdiagramm ---------------- */
+const PW=860,PH=400,pm={l:84,r:20,t:24,b:44};
+function drawPayoff(p){
+  const Am=st.amount, svg=$("payoff"), xmin=Math.min(0.5,p.L-0.08), xmax=Math.max(1.6,p.U+0.1);
+  const top=payoff(p,p.U-1e-6,false), ymin=Math.floor(Math.min(0.85,p.KS+p.R-0.08)*20)/20, ymax=Math.ceil(Math.max(1.3,top+0.06,payoff(p,p.L+1e-6,false)+0.06)*20)/20;
+  const sx=v=>pm.l+(v-xmin)/(xmax-xmin)*(PW-pm.l-pm.r), sy=v=>pm.t+(ymax-v)/(ymax-ymin)*(PH-pm.t-pm.b);
+  let g=`<defs><clipPath id="cp"><rect x="${pm.l}" y="${pm.t}" width="${PW-pm.l-pm.r}" height="${PH-pm.t-pm.b}"/></clipPath></defs>`;
+  g+=`<rect x="${sx(p.L)}" y="${pm.t}" width="${sx(p.U)-sx(p.L)}" height="${PH-pm.t-pm.b}" fill="var(--band)"/>`;
+  const step=(ymax-ymin)>0.6?0.2:0.1;
+  for(let v=Math.ceil(ymin/step)*step; v<=ymax+1e-9; v+=step){g+=`<line x1="${pm.l}" x2="${PW-pm.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="#E4E7EB"/><text x="${pm.l-8}" y="${sy(v)+5}" text-anchor="end" font-size="14" fill="#5A6472">${fN(Am*v)}</text>`}
+  g+=`<line x1="${pm.l}" x2="${PW-pm.r}" y1="${PH-pm.b}" y2="${PH-pm.b}" stroke="#5A6472"/>`;
+  [[p.L,fP(p.L)],[1,"Start"],[p.U,fP(p.U)]].forEach(([v,t])=>{g+=`<text x="${sx(v)}" y="${PH-pm.b+22}" text-anchor="middle" font-size="16" font-weight="700" fill="#1E2530">${t}</text>`});
+  g+=`<text x="${PW-pm.r}" y="${PH-6}" text-anchor="end" font-size="14" fill="#5A6472">SMI bei Verfall</text>`;
+  [p.L,p.U].forEach(b=>{g+=`<line x1="${sx(b)}" x2="${sx(b)}" y1="${pm.t}" y2="${PH-pm.b}" stroke="#000" stroke-width="2.5"/>`});
+  g+=`<line clip-path="url(#cp)" x1="${sx(xmin)}" y1="${sy(xmin)}" x2="${sx(xmax)}" y2="${sy(xmax)}" stroke="var(--smi)" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>`;
+  const yk=sy(p.KS+p.R); g+=`<line x1="${pm.l}" x2="${PW-pm.r}" y1="${yk}" y2="${yk}" stroke="var(--ko)" stroke-width="3" stroke-dasharray="10 7"/>`;
+  const e=0.0005; g+=`<polyline points="${[p.L+e,1,p.U-e].map(v=>sx(v)+","+sy(payoff(p,v,false))).join(" ")}" fill="none" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/>`;
+  [p.L+e,p.U-e].forEach(v=>{g+=`<circle cx="${sx(v)}" cy="${sy(payoff(p,v,false))}" r="6" fill="#fff" stroke="var(--ink)" stroke-width="3"/>`});
+  // Benis und Andris Szenario
+  [[0.75,"Beni −25 %","#C55A11"],[1.30,"Andri +30 %","#1F3A5F"]].forEach(([v,t,c])=>{const y=payoff(p,v,false),X=sx(v),Y=sy(y),left=v<1;
+    g+=`<circle cx="${X}" cy="${Y}" r="9" fill="${c}" stroke="#fff" stroke-width="2.5"/>`;
+    const tx=left?X+16:X-16, an=left?"start":"end", ty=Math.max(pm.t+20,Y-50);
+    g+=`<text x="${tx}" y="${ty}" text-anchor="${an}" font-size="16" fill="#1E2530">${t}</text><text x="${tx}" y="${ty+20}" text-anchor="${an}" font-size="19" font-weight="700" fill="#000">${fC(Am*y)}</text>`});
+  g+=`<text x="${sx(1)}" y="${yk+24}" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ko)">Grenze berührt: ${fC(Am*(p.KS+p.R))}</text>`;
+  g+=`<line id="hx" x1="0" x2="0" y1="${pm.t}" y2="${PH-pm.b}" stroke="#000" visibility="hidden"/><rect id="hit" x="${pm.l}" y="${pm.t}" width="${PW-pm.l-pm.r}" height="${PH-pm.t-pm.b}" fill="transparent" style="cursor:crosshair"/>`;
+  svg.innerHTML=g;
+  $("leg").innerHTML=`<span><i style="border-color:var(--ink);border-top-width:4px"></i>Grenze nie berührt</span><span><i style="border-color:var(--ko);border-top-style:dashed"></i>Grenze berührt</span><span><i style="border-color:var(--smi);border-top-style:dotted"></i>SMI direkt</span>`;
+  const hit=$("hit"),tip=$("tip"),box=$("pbox");
+  const val=ev=>{const r=svg.getBoundingClientRect();return Math.round(Math.min(xmax,Math.max(xmin,xmin+((ev.clientX-r.left)/r.width*PW-pm.l)/(PW-pm.l-pm.r)*(xmax-xmin)))*100)/100};
+  hit.addEventListener("mousemove",ev=>{const v=val(ev),inC=v>p.L&&v<p.U;$("hx").setAttribute("x1",sx(v));$("hx").setAttribute("x2",sx(v));$("hx").setAttribute("visibility","visible");
+    tip.style.display="block";tip.innerHTML=`<b>SMI ${v>=1?"+":"−"}${Math.round(Math.abs(v-1)*100)} %</b><br>Grenze nie berührt: ${inC?fC(Am*payoff(p,v,false)):"–"}<br>Grenze berührt: ${fC(Am*(p.KS+p.R))}`;
+    const br=box.getBoundingClientRect();let lx=ev.clientX-br.left+14;if(lx>br.width-240)lx=ev.clientX-br.left-250;tip.style.left=lx+"px";tip.style.top=(ev.clientY-br.top-24)+"px"});
+  hit.addEventListener("mouseleave",()=>{tip.style.display="none";$("hx").setAttribute("visibility","hidden")});
+  hit.addEventListener("click",ev=>{st.x=val(ev);st.ko=false;$("x").value=Math.round(st.x*100);render()});
+}
+
+/* ---------------- Messlatte schlechtester Fall ---------------- */
+function drawGauge(loss,tax){
+  const tot=loss+tax, mx=Math.max(LIMIT*1.15,tot*1.1), X=v=>10+v/mx*340, y=34, h=34;
+  let g=`<rect x="10" y="${y}" width="340" height="${h}" fill="#EEF1F4"/>`;
+  g+=`<rect x="10" y="${y}" width="${X(loss)-10}" height="${h}" fill="var(--ink)"/><rect x="${X(loss)}" y="${y}" width="${X(tot)-X(loss)}" height="${h}" fill="var(--smi)"/>`;
+  g+=`<line x1="${X(LIMIT)}" x2="${X(LIMIT)}" y1="${y-14}" y2="${y+h+14}" stroke="${tot>LIMIT?"#B23A1E":"#000"}" stroke-width="4"/>`;
+  g+=`<text x="${X(LIMIT)}" y="${y-18}" text-anchor="middle" font-size="14" font-weight="700" fill="#000">Schmerzgrenze</text>`;
+  g+=`<text x="12" y="${y+h+22}" font-size="14" fill="#1F3A5F">■ Verlust ${fN(loss)}</text><text x="190" y="${y+h+22}" font-size="14" fill="#5A6472">■ Steuer ${fN(tax)}</text>`;
+  $("gauge").innerHTML=g;
+}
+
+/* ---------------- Verlauf (Simulation) ---------------- */
+const SW=1060,SH=330,sm={l:70,r:120,t:14,b:34};
+const sim={paths:[],cur:null,anim:null,n:0,ko:0,key:""};
+function randn(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function genPath(p){const N=Math.round(p.T*MKT.days),dt=1/MKT.days,V=volOf(p.T),s=V.sigma,mu=rCont(p.T)+MKT.erp-V.q,dr=(mu-s*s/2)*dt,vol=s*Math.sqrt(dt);let lx=0,pts=[1],ko=-1;for(let i=1;i<=N;i++){lx+=dr+vol*randn();const v=Math.exp(lx);pts.push(v);if(ko<0&&(v<=p.L||v>=p.U))ko=i}return{pts,ko,xT:pts[N]}}
+function drawSimFrame(){
+  const p=P, key=[p.KS,p.T,p.L,p.U,p.w,p.R,p.daily].join("|");
+  if(key!==sim.key){if(sim.anim){cancelAnimationFrame(sim.anim);sim.anim=null}sim.paths=[];sim.cur=null;sim.n=0;sim.ko=0;sim.key=key;mcClear()}
+  let vmax=0,vmin=Infinity;                                       // y-Achse passt sich an: kein Pfad wird oben oder unten abgeschnitten
+  const ext=pts=>{for(let i=0;i<pts.length;i++){const v=pts[i];if(v>vmax)vmax=v;if(v<vmin)vmin=v}};
+  sim.paths.slice(-100).forEach(pp=>ext(pp.pts));if(sim.cur)ext(sim.cur.pts);
+  const lo=Math.floor(Math.min(0.5,p.L-0.1,vmin*0.97)*10)/10,hi=Math.ceil(Math.max(1.6,p.U+0.1,vmax*1.03)*10)/10,N=p.T*MKT.days;
+  const X=i=>sm.l+i/N*(SW-sm.l-sm.r),Y=v=>sm.t+(hi-v)/(hi-lo)*(SH-sm.t-sm.b);
+  const path=(pts,upto)=>{const stp=Math.max(1,Math.floor(pts.length/400));let d=`M${X(0)},${Y(pts[0])}`;for(let i=stp;i<=upto;i+=stp)d+=`L${X(i).toFixed(1)},${Y(pts[i]).toFixed(1)}`;return d+`L${X(upto).toFixed(1)},${Y(pts[upto]).toFixed(1)}`};
+  let g=`<defs><clipPath id="cs"><rect x="${sm.l}" y="${sm.t}" width="${SW-sm.l-sm.r}" height="${SH-sm.t-sm.b}"/></clipPath></defs>`;
+  g+=`<rect x="${sm.l}" y="${Y(p.U)}" width="${SW-sm.l-sm.r}" height="${Y(p.L)-Y(p.U)}" fill="var(--band)"/>`;
+  [[p.U,"obere Grenze"],[p.L,"untere Grenze"]].forEach(([b,t])=>{g+=`<line x1="${sm.l}" x2="${SW-sm.r}" y1="${Y(b)}" y2="${Y(b)}" stroke="#000" stroke-width="2.5"/><text x="${SW-sm.r+6}" y="${Y(b)+5}" font-size="14" fill="#000">${t}</text>`});
+  const tk=(hi-lo)>1.6?0.4:0.2;
+  for(let v=Math.ceil(lo/tk-1e-9)*tk;v<=hi+1e-9;v+=tk)g+=`<line x1="${sm.l}" x2="${SW-sm.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E7EB"/><text x="${sm.l-8}" y="${Y(v)+5}" text-anchor="end" font-size="13" fill="#5A6472">${Math.round(v*100)} %</text>`;
+  g+=`<line x1="${sm.l}" x2="${SW-sm.r}" y1="${Y(1)}" y2="${Y(1)}" stroke="#5A6472" stroke-dasharray="3 4"/><text x="${SW-sm.r+6}" y="${Y(1)+5}" font-size="14" fill="#5A6472">Start</text>`;
+  if(vmax>p.U+0.05)g+=`<text x="${SW-sm.r+6}" y="${Y(vmax)+5}" font-size="13" font-weight="700" fill="var(--ko)">Max. ${Math.round(vmax*100)} %</text>`;
+  for(let t=0;t<=p.T;t++)g+=`<text x="${X(t*MKT.days)}" y="${SH-10}" text-anchor="middle" font-size="14" fill="#5A6472">10/${2026+t}</text>`;
+  sim.paths.slice(-100).forEach(pp=>{g+=`<path clip-path="url(#cs)" d="${path(pp.pts,pp.pts.length-1)}" fill="none" stroke="${pp.ko>=0?"var(--ko)":"var(--ink)"}" stroke-width="1" opacity=".3"/>`});
+  if(sim.cur){const c=sim.cur,hit=c.ko>=0&&c.ko<=c.upto;g+=`<path clip-path="url(#cs)" d="${path(c.pts,c.upto)}" fill="none" stroke="${hit?"var(--ko)":"var(--ink)"}" stroke-width="3"/>`;
+    if(hit)g+=`<circle cx="${X(c.ko)}" cy="${Y(c.pts[c.ko])}" r="10" fill="none" stroke="var(--ko)" stroke-width="3"/>`;
+    g+=`<circle cx="${X(c.upto)}" cy="${Y(Math.min(hi,Math.max(lo,c.pts[c.upto])))}" r="6" fill="${hit?"var(--ko)":"var(--ink)"}"/>`}
+  $("sim").innerHTML=g;
+  let s=sim.n?`<span>${fN(sim.n)} Verläufe: <b style="color:var(--ko)">${fN(sim.ko)}× Grenze berührt</b>, <b>${fN(sim.n-sim.ko)}× Korridor gehalten</b></span>`+(mc.res?`<span class="small">Gezeichnet sind ${sim.paths.length} davon.</span>`:""):`<span class="small">Klicken Sie auf «Einen Verlauf abspielen».</span>`;
+  if(sim.cur&&sim.cur.done){const c=sim.cur;s+=`<span>Dieser Verlauf: <b>${fC(st.amount*payoff(p,c.xT,c.ko>=0))}</b></span>`}
+  $("simstats").innerHTML=s;
+}
+function rec(path){sim.n++;if(path.ko>=0)sim.ko++;sim.paths.push(path)}
+$("sim1").addEventListener("click",()=>{if(mc.res||mc.busy){mcClear();sim.paths=[];sim.n=0;sim.ko=0}if(sim.anim)cancelAnimationFrame(sim.anim);const path=genPath(P),N=path.pts.length-1,t0=performance.now(),dur=3000;sim.cur={...path,upto:1,done:false};
+  const stp=now=>{const f=Math.min(1,(now-t0)/dur);sim.cur.upto=Math.max(1,Math.floor(f*N));if(f>=1){sim.cur.done=true;rec(path);sim.anim=null;drawSimFrame();return}drawSimFrame();sim.anim=requestAnimationFrame(stp)};
+  sim.anim=requestAnimationFrame(stp)});
+$("sim100").addEventListener("click",()=>{if(mc.res||mc.busy){mcClear();sim.paths=[];sim.n=0;sim.ko=0}if(sim.anim){cancelAnimationFrame(sim.anim);sim.anim=null}for(let i=0;i<100;i++)rec(genPath(P));sim.cur=null;drawSimFrame()});
+$("simr").addEventListener("click",()=>{mcClear();if(sim.anim){cancelAnimationFrame(sim.anim);sim.anim=null}sim.paths=[];sim.cur=null;sim.n=0;sim.ko=0;drawSimFrame()});
+
+/* ---------------- Monte-Carlo (200'000 Pfade) ----------------
+   Die Rechenmaschine (mcInit, mcRun, mcFinish) hat keine Abhängigkeiten: Sie läuft im Hintergrund (Web-Worker) und notfalls
+   in Stücken zu 5'000 Pfaden im Hauptprogramm. Je Pfad werden täglich (252 Schritte pro Jahr) zwei Welten mit denselben Zufallszahlen
+   gerechnet: risikoneutral (Drift r − q, für den Preis) und real (zusätzlich +4 % Risikoprämie, für die Erwartung).
+   Sobald eine Welt die Grenze berührt hat, wird sie nicht weiter simuliert (Auszahlung steht fest). */
+/*MC_ENGINE_START*/
+function mcPpnd(p){const q=p-0.5;let r,v;
+  if(Math.abs(q)<=0.425){r=0.180625-q*q;
+    return q*(((((((2509.0809287301226727*r+33430.575583588128105)*r+67265.770927008700853)*r+45921.953931549871457)*r+13731.693765509461125)*r+1971.5909503065514427)*r+133.14166789178437745)*r+3.387132872796366608)
+      /(((((((5226.495278852854561*r+28729.085735721942674)*r+39307.89580009271061)*r+21213.794301586595867)*r+5394.1960214247511077)*r+687.1870074920579083)*r+42.313330701600911252)*r+1)}
+  r=q<0?p:1-p;r=Math.sqrt(-Math.log(r));
+  if(r<=5){r-=1.6;
+    v=(((((((7.7454501427834140764e-4*r+0.0227238449892691845833)*r+0.24178072517745061177)*r+1.27045825245236838258)*r+3.64784832476320460504)*r+5.7694972214606914055)*r+4.6303378461565452959)*r+1.42343711074968357734)
+      /(((((((1.05075007164441684324e-9*r+5.475938084995344946e-4)*r+0.0151986665636164571966)*r+0.14810397642748007459)*r+0.68976733498510000455)*r+1.6763848301838038494)*r+2.05319162663775882187)*r+1)}
+  else{r-=5;
+    v=(((((((2.01033439929228813265e-7*r+2.71155556874348757815e-5)*r+0.0012426609473880784386)*r+0.026532189526576123093)*r+0.29656057182850489123)*r+1.7848265399172913358)*r+5.4637849111641143699)*r+6.6579046435011037772)
+      /(((((((2.04426310338993978564e-15*r+1.4215117583164458887e-7)*r+1.8463183175100546818e-5)*r+7.868691311456132591e-4)*r+0.0148753612908506148525)*r+0.13692988092273580531)*r+0.59983220655588793769)*r+1)}
+  return q<0?-v:v}
+function mcInit(P){
+  let sd=P.seed>>>0;
+  const spl=()=>{sd=(sd+0x9E3779B9)>>>0;let t=sd;t=Math.imul(t^(t>>>16),0x21F0AAAD);t=Math.imul(t^(t>>>15),0x735A2D97);return (t^(t>>>15))>>>0};
+  const S={P,a:spl(),b:spl(),c:spl(),d:spl(),i:0,sC:0,sC2:0,sP:0,sP2:0,sA:0,sF:0,sF2:0,ck:[]};      // sfc32, Start über splitmix32 aus dem Seed
+  const ns=Math.min(P.nS,P.n);
+  S.payP=new Float32Array(P.n);S.koS=new Uint16Array(P.n);S.side=new Uint8Array(P.n);
+  S.ns=ns;S.sam=new Float32Array(ns*(P.N+1));S.samKo=new Int32Array(ns).fill(-1);
+  return S;
+}
+function mcRun(S,i1){                                              // simuliert die Pfade S.i ... i1-1
+  const {n,N,vol,dq,dp,lnL,lnU,cont,s2dt,Pu,Pd,R,KS,disc,ckEvery}=S.P;
+  let {a,b,c,d,sC,sC2,sP,sP2,sA,sF,sF2}=S;
+  const {payP,koS,side,sam,samKo,ns,ck}=S,L1=N+1;
+  for(let i=S.i;i<i1;i++){
+    const full=i<ns;
+    let lq=0,lp=0,aq=1,ap=1,kp=0,sdn=0;
+    if(full)sam[i*L1]=1;
+    for(let k=1;k<=N;k++){
+      let t=((a+b|0)+d|0);d=d+1|0;a=b^(b>>>9);b=c+(c<<3)|0;c=(c<<21)|(c>>>11);c=c+t|0;
+      const z=mcPpnd(((t>>>0)+0.5)/4294967296);
+      let u=0;
+      if(cont){t=((a+b|0)+d|0);d=d+1|0;a=b^(b>>>9);b=c+(c<<3)|0;c=(c<<21)|(c>>>11);c=c+t|0;u=((t>>>0)+0.5)/4294967296}
+      if(aq){const o=lq;lq+=dq+vol*z;
+        if(lq<=lnL||lq>=lnU)aq=0;
+        else if(cont){if(u<Math.exp(-2*(o-lnL)*(lq-lnL)/s2dt)+Math.exp(-2*(lnU-o)*(lnU-lq)/s2dt))aq=0}}
+      if(ap||full){const o=lp;lp+=dp+vol*z;
+        if(ap){let hit=0;
+          if(lp<=lnL)hit=1;else if(lp>=lnU)hit=2;
+          else if(cont){const pl=Math.exp(-2*(o-lnL)*(lp-lnL)/s2dt),pu=Math.exp(-2*(lnU-o)*(lnU-lp)/s2dt);if(u<pl)hit=1;else if(u<pl+pu)hit=2}
+          if(hit){ap=0;kp=k;sdn=hit}}}
+      if(full)sam[i*L1+k]=Math.exp(lp);
+      if(!aq&&!ap&&!full)break;
+    }
+    if(full&&kp>0)samKo[i]=kp;
+    let F;                                                           // risikoneutral: abgezinste Auszahlungen
+    if(aq){const x=Math.exp(lq),cc=Math.max(x-1,0)*disc,pp=Math.max(1-x,0)*disc;
+      sC+=cc;sC2+=cc*cc;sP+=pp;sP2+=pp*pp;sA+=1;F=Pu*cc+Pd*pp}
+    else F=R*disc;
+    sF+=F;sF2+=F*F;
+    if(ap){const x=Math.exp(lp);payP[i]=KS+Pu*Math.max(x-1,0)+Pd*Math.max(1-x,0)}   // real: Rückzahlung in Anteilen des Nominals
+    else{payP[i]=KS+R;koS[i]=kp;side[i]=sdn}
+    const m=i+1;
+    if(m%ckEvery===0){const mean=sF/m,v=Math.max(0,(sF2-m*mean*mean)/(m-1));ck.push(m,mean,Math.sqrt(v/m))}
+  }
+  S.i=i1;S.a=a;S.b=b;S.c=c;S.d=d;S.sC=sC;S.sC2=sC2;S.sP=sP;S.sP2=sP2;S.sA=sA;S.sF=sF;S.sF2=sF2;
+}
+function mcFinish(S){
+  const ckA=new Float64Array(S.ck),P=S.P;
+  return {n:P.n,N:P.N,sC:S.sC,sC2:S.sC2,sP:S.sP,sP2:S.sP2,sA:S.sA,sF:S.sF,sF2:S.sF2,payP:S.payP,koS:S.koS,side:S.side,ck:ckA,sam:S.sam,samKo:S.samKo,ns:S.ns,
+    _tr:[S.payP.buffer,S.koS.buffer,S.side.buffer,ckA.buffer,S.sam.buffer,S.samKo.buffer]};
+}
+/*MC_ENGINE_END*/
+
+const MC_LABEL="200'000 Verläufe (Monte-Carlo)";
+const mc={res:null,busy:false,w:null,g:null,tm:0,wd:0,t0:0,prm:null,got:false,open:false};
+function mcStop(){if(mc.w){mc.w.terminate();mc.w=null}if(mc.tm){clearTimeout(mc.tm);mc.tm=0}if(mc.wd){clearTimeout(mc.wd);mc.wd=0}mc.g=null;mc.busy=false;$("mcrun").textContent=MC_LABEL;$("mcprog").hidden=true}
+function mcClear(){mcStop();mc.res=null;$("mc").hidden=true}
+function mcProg(k,n){$("mcprog").hidden=false;$("mcbar").style.width=(k/n*100).toFixed(1)+"%";$("mcpt").textContent=fN(k)+" von "+fN(n)+" Pfaden"}
+function mcDone(r,prm){
+  r.sec=(performance.now()-mc.t0)/1000;r.prm=prm;r.key=sim.key;mc.open=false;
+  mcStop();mc.res=r;
+  const L1=r.N+1;sim.paths=[];
+  for(let i=0;i<r.ns;i++)sim.paths.push({pts:r.sam.subarray(i*L1,(i+1)*L1),ko:r.samKo[i],xT:r.sam[(i+1)*L1-1]});
+  let ko=0;for(let i=0;i<r.n;i++)if(r.koS[i])ko++;
+  sim.n=r.n;sim.ko=ko;sim.cur=null;
+  drawSimFrame();renderMC();
+}
+function mcStart(){
+  if(mc.busy){mcStop();return}
+  const p=P,T=p.T,V=volOf(T),s=V.sigma,r=rCont(T),N=Math.round(T*MKT.days),dt=1/MKT.days;
+  const prm={n:200000,N,vol:s*Math.sqrt(dt),dq:(r-V.q-s*s/2)*dt,dp:(r-V.q+MKT.erp-s*s/2)*dt,lnL:Math.log(p.L),lnU:Math.log(p.U),
+    cont:!p.daily,s2dt:s*s*dt,seed:Math.max(1,Math.floor(+$("mcseed").value||2026)),Pu:p.Pu,Pd:p.Pd,R:p.R,KS:p.KS,
+    disc:Math.exp(-r*T),nS:100,ckEvery:1000};
+  if(sim.anim){cancelAnimationFrame(sim.anim);sim.anim=null}
+  sim.paths=[];sim.cur=null;sim.n=0;sim.ko=0;mc.res=null;$("mc").hidden=true;drawSimFrame();
+  mc.busy=true;mc.prm=prm;mc.t0=performance.now();$("mcrun").textContent="Abbrechen";mcProg(0,prm.n);
+  const fallback=()=>{                                           // im Hauptprogramm, in Stücken zu 5'000 Pfaden
+    if(mc.w){mc.w.terminate();mc.w=null}if(mc.wd){clearTimeout(mc.wd);mc.wd=0}
+    mc.g=mcInit(prm);
+    const tick=()=>{const S=mc.g;if(!S)return;mcRun(S,Math.min(prm.n,S.i+5000));
+      if(S.i>=prm.n){const rr=mcFinish(S);delete rr._tr;mcDone(rr,prm)}else{mcProg(S.i,prm.n);mc.tm=setTimeout(tick,0)}};
+    mc.tm=setTimeout(tick,0)};
+  try{
+    const src=[mcPpnd,mcInit,mcRun,mcFinish].map(f=>f.toString()).join("\n")+"\nonmessage=function(e){const S=mcInit(e.data),n=e.data.n;while(S.i<n){mcRun(S,Math.min(n,S.i+5000));postMessage({prog:S.i})}const r=mcFinish(S),tr=r._tr;delete r._tr;postMessage({done:r},tr)}";
+    const w=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
+    mc.w=w;mc.got=false;
+    mc.wd=setTimeout(()=>{if(mc.busy&&mc.w===w&&!mc.got)fallback()},6000);      // Hintergrund-Rechner meldet sich nicht (z. B. gesperrt): im Hauptprogramm weiterrechnen
+    w.onmessage=ev=>{mc.got=true;if(ev.data.prog!=null)mcProg(ev.data.prog,prm.n);else mcDone(ev.data.done,prm)};
+    w.onerror=()=>{if(mc.busy&&mc.w===w)fallback()};
+    w.postMessage(prm);
+  }catch(e){fallback()}
+}
+$("mcrun").addEventListener("click",mcStart);
+
+/* ---------------- Monte-Carlo: Anzeige ---------------- */
+const mcP=(v,d=3)=>fP(v,d);
+function mcMom(s,s2,n){const m=s/n,v=Math.max(0,(s2-n*m*m)/(n-1));return{m,se:Math.sqrt(v/n)}}
+function mcChartConv(r,p){
+  const W=560,H=290,m={l:62,r:86,t:16,b:44},pts=[];
+  for(let i=0;i<r.ck.length;i+=3)if(r.ck[i]>=2000)pts.push([r.ck[i],(1-p.zcb-r.ck[i+1])*100,r.ck[i+2]*100]);
+  if(pts.length<2)return"";
+  const f=p.marge*100,n0=pts[0][0],nmax=pts[pts.length-1][0];
+  let lo=f,hi=f;pts.forEach(([,y,e])=>{lo=Math.min(lo,y-1.96*e);hi=Math.max(hi,y+1.96*e)});
+  const pd=(hi-lo)*.06;lo-=pd;hi+=pd;
+  const X=n=>m.l+(Math.log(n)-Math.log(n0))/(Math.log(nmax)-Math.log(n0))*(W-m.l-m.r),Y=v=>m.t+(hi-v)/(hi-lo)*(H-m.t-m.b);
+  let g="";
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E7EB"/><text x="${m.l-6}" y="${Y(v)+5}" text-anchor="end" font-size="13" fill="#5A6472">${v.toFixed(2)} %</text>`}
+  [...new Set([2000,10000,50000,nmax])].forEach(n=>{g+=`<line x1="${X(n)}" x2="${X(n)}" y1="${H-m.b}" y2="${H-m.b+5}" stroke="#5A6472"/><text x="${X(n)}" y="${H-m.b+19}" text-anchor="middle" font-size="13" fill="#5A6472">${fN(n)}</text>`});
+  const up=pts.map(([n,y,e])=>X(n).toFixed(1)+","+Y(y+1.96*e).toFixed(1)),dn=pts.map(([n,y,e])=>X(n).toFixed(1)+","+Y(y-1.96*e).toFixed(1)).reverse();
+  g+=`<polygon points="${up.concat(dn).join(" ")}" fill="#1F3A5F" opacity=".16"/>`;
+  g+=`<polyline points="${pts.map(([n,y])=>X(n).toFixed(1)+","+Y(y).toFixed(1)).join(" ")}" fill="none" stroke="#1F3A5F" stroke-width="2" stroke-linejoin="round"/>`;
+  g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(f)}" y2="${Y(f)}" stroke="#C55A11" stroke-width="2.5" stroke-dasharray="8 5"/>`;
+  const yEnd=pts[pts.length-1][1];
+  g+=`<text x="${W-m.r+6}" y="${Y(f)-6}" font-size="14" font-weight="700" fill="#C55A11">Formel</text><text x="${W-m.r+6}" y="${Y(yEnd)+16}" font-size="14" font-weight="700" fill="#1F3A5F">Monte Carlo</text>`;
+  g+=`<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle" font-size="14" fill="#5A6472">Anzahl Pfade (logarithmisch)</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Schätzung der Marge der Bank in Abhängigkeit der Anzahl Pfade">${g}</svg>`;
+}
+function mcChartPay(r,p,Am){
+  const W=560,H=290,m={l:48,r:14,t:16,b:50},n=r.n,nb=36;
+  let hi=p.KS+1e-6;for(let i=0;i<n;i++)if(!r.koS[i]&&r.payP[i]>hi)hi=r.payP[i];
+  const lo=p.KS,w=(hi-lo)/nb,cnt=new Array(nb).fill(0);
+  for(let i=0;i<n;i++)if(!r.koS[i])cnt[Math.min(nb-1,Math.floor((r.payP[i]-lo)/w))]++;
+  const mx=Math.max(...cnt,1)/n*100*1.12,X=v=>m.l+(v-lo)/(hi-lo)*(W-m.l-m.r),Y=v=>m.t+(1-v/mx)*(H-m.t-m.b);
+  let g="";
+  for(let k=0;k<=4;k++){const v=mx*k/4;g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E7EB"/><text x="${m.l-6}" y="${Y(v)+5}" text-anchor="end" font-size="13" fill="#5A6472">${v.toFixed(1)} %</text>`}
+  cnt.forEach((c,i)=>{const x0=X(lo+i*w),x1=X(lo+(i+1)*w),y=Y(c/n*100);g+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,x1-x0-1).toFixed(1)}" height="${(H-m.b-y).toFixed(1)}" fill="#1F3A5F"/>`});
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;g+=`<text x="${X(v)}" y="${H-m.b+19}" text-anchor="${k===0?"start":k===4?"end":"middle"}" font-size="13" fill="#5A6472">${fN(Am*v)}</text>`}
+  if(1>lo&&1<hi)g+=`<line x1="${X(1)}" x2="${X(1)}" y1="${m.t}" y2="${H-m.b}" stroke="#000" stroke-width="2" stroke-dasharray="5 4"/><text x="${X(1)+6}" y="${m.t+14}" font-size="14" font-weight="700" fill="#000">Anlage ${fN(Am)}</text>`;
+  g+=`<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle" font-size="14" fill="#5A6472">Rückzahlung in CHF vor Steuern (Pfade ohne Berührung)</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Verteilung der Rückzahlung, wenn keine Grenze berührt wird">${g}</svg>`;
+}
+function mcChartKo(r,p){
+  const W=560,H=290,m={l:48,r:14,t:16,b:50},n=r.n,T=p.T,nb=T*2,per=MKT.days/2,dn=new Array(nb).fill(0),up=new Array(nb).fill(0);
+  for(let i=0;i<n;i++)if(r.koS[i]){const b=Math.min(nb-1,Math.floor((r.koS[i]-1)/per));(r.side[i]===1?dn:up)[b]++}
+  const mx=Math.max(...dn.map((v,i)=>v+up[i]),1)/n*100*1.12,bw=(W-m.l-m.r)/nb,Y=v=>m.t+(1-v/mx)*(H-m.t-m.b);
+  let g=`<defs><pattern id="mch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#C55A11" stroke-width="3"/></pattern></defs>`;
+  for(let k=0;k<=4;k++){const v=mx*k/4;g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#E4E7EB"/><text x="${m.l-6}" y="${Y(v)+5}" text-anchor="end" font-size="13" fill="#5A6472">${v.toFixed(1)} %</text>`}
+  for(let i=0;i<nb;i++){const x=m.l+i*bw+1,wd=Math.max(1,bw-2),yd=Y(dn[i]/n*100),yu=Y((dn[i]+up[i])/n*100);
+    g+=`<rect x="${x.toFixed(1)}" y="${yd.toFixed(1)}" width="${wd.toFixed(1)}" height="${(H-m.b-yd).toFixed(1)}" fill="#C55A11"/>`;
+    g+=`<rect x="${x.toFixed(1)}" y="${yu.toFixed(1)}" width="${wd.toFixed(1)}" height="${(yd-yu).toFixed(1)}" fill="url(#mch)" stroke="#C55A11" stroke-width="1"/>`}
+  for(let k=0;k<=nb;k+=2)g+=`<text x="${m.l+k*bw}" y="${H-m.b+19}" text-anchor="middle" font-size="13" fill="#5A6472">${k/2}</text>`;
+  g+=`<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle" font-size="14" fill="#5A6472">Jahre bis zur ersten Berührung (Halbjahres-Schritte)</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Zeitpunkt der ersten Berührung einer Grenze">${g}</svg>`;
+}
+function renderMC(){
+  const el=$("mc"),r=mc.res;
+  if(!r){el.hidden=true;return}
+  el.hidden=false;
+  const p=P,Am=st.amount,T=p.T,n=r.n,prm=r.prm,V=volOf(T);
+  // 1) Preis-Prüfung (risikoneutral)
+  const A=mcMom(r.sA,r.sA,n),C=mcMom(r.sC,r.sC2,n),Pt=mcMom(r.sP,r.sP2,n),F=mcMom(r.sF,r.sF2,n);
+  const rows=[
+    ["Grenze berührt (Wahrscheinlichkeit)",1-A.m,A.se,1-p.Q,0],
+    ["Obere Option (Knock-out-Call)",C.m,C.se,p.call,0],
+    ["Untere Option (Knock-out-Put)",Pt.m,Pt.se,p.put,0],
+    ["Fair Value des Zertifikats",p.zcb+F.m,F.se,p.fv,1],
+    ["Marge der Bank",1-p.zcb-F.m,F.se,p.marge,1]];
+  const trs=rows.map(([nm,v,se,f,key])=>{const z=se>1e-7?(v-f)/se:0,ok=Math.abs(v-f)<5e-5||Math.abs(z)<=2.5;
+    return `<tr class="${key?"key":""}"><td>${nm}</td><td>${mcP(v)}</td><td>± ${mcP(se)}</td><td>${mcP(v-1.96*se)} bis ${mcP(v+1.96*se)}</td><td>${mcP(f)}</td><td class="${ok?"okc":"bad"}">${z>=0?"+":"−"}${Math.abs(z).toFixed(1)} ${ok?"✓":"⚠"}</td></tr>`}).join("");
+  // 2) Erwartung (reale Welt), vor und nach Steuern: Steuer auf den Zinsanteil wie im Bereich «Wo steht der SMI …»
+  const tx=p.taxable*st.tax,lim=LIMIT/Am,pay=r.payP;
+  let s1=0,s2=0,gain=0,loss=0,gainN=0,lossN=0,bigV=0,bigN=0,nd=0,nu=0;
+  for(let i=0;i<n;i++){const v=pay[i],w=v-tx;s1+=v;s2+=v*v;
+    if(v>1+1e-6)gain++;else if(v<1-1e-6)loss++;                       // kleine Toleranz wegen der 32-Bit-Speicherung
+    if(w>1+1e-6)gainN++;else if(w<1-1e-6)lossN++;
+    if(1-v>lim+1e-6)bigV++;
+    if(1-w>lim+1e-6)bigN++;
+    if(r.koS[i]){if(r.side[i]===1)nd++;else nu++}}
+  const mean=s1/n,sdv=Math.sqrt(Math.max(0,s2/n-mean*mean)),seM=sdv/Math.sqrt(n),srt=Float32Array.from(pay).sort(),qf=f=>srt[Math.min(n-1,Math.max(0,Math.floor(f*n)))];
+  let es=0;const k5=Math.floor(.05*n);for(let i=0;i<k5;i++)es+=srt[i];es/=k5;
+  const ko=nd+nu,pko=ko/n,seK=Math.sqrt(pko*(1-pko)/n);
+  const rp=m=>fP(Math.pow(Math.max(m,1e-9),1/T)-1,2);
+  const kv=[
+    ["Grenze berührt",`${fP(pko,2)} ± ${fP(seK,2)}`,"gleich",`Formel: ${fP(1-p.Qr,2)} · davon zuerst unten ${fP(ko?nd/ko:0,0)}, oben ${fP(ko?nu/ko:0,0)}`],
+    ["Mittlere Rückzahlung",`${fC(Am*mean)} ± ${fN(Am*seM*1.96)}`,fC(Am*(mean-tx)),`Erwartete Rendite pro Jahr: ${rp(mean)} vor, ${rp(mean-tx)} nach Steuern (± ist das 95 %-Intervall)`],
+    ["Median der Rückzahlung",fC(Am*qf(.5)),fC(Am*(qf(.5)-tx)),"die Hälfte der Pfade liegt darüber"],
+    ["Rückzahlung bei Berührung",fC(Am*(p.KS+p.R)),fC(Am*(p.KS+p.R-tx)),"fester Betrag: Kapitalschutz plus Trostpreis (nach Steuern: schlechtester Fall)"],
+    ["Schlechteste 5 % liegen unter",fC(Am*qf(.05)),fC(Am*(qf(.05)-tx)),`im Schnitt der schlechtesten 5 % (Expected Shortfall): ${fC(Am*es)} vor, ${fC(Am*(es-tx))} nach Steuern`],
+    ["Beste 5 % liegen über",fC(Am*qf(.95)),fC(Am*(qf(.95)-tx)),`höchste Rückzahlung aller Pfade: ${fC(Am*srt[n-1])} vor, ${fC(Am*(srt[n-1]-tx))} nach Steuern`],
+    ["Streuung der Rückzahlung",fC(Am*sdv),"gleich","Standardabweichung über alle Pfade"],
+    ["Rückzahlung über der Anlage",fP(gain/n,1),fP(gainN/n,1),`Rückzahlung unter der Anlage: ${fP(loss/n,1)} vor, ${fP(lossN/n,1)} nach Steuern`],
+    [`Verlust über der Schmerzgrenze (${fC(LIMIT)})`,fP(bigV/n,1),fP(bigN/n,1),"Vorgabe der Kunden: Verlust höchstens CHF 10'000"]];
+  const kvh=kv.map(([a,b,c,d])=>`<tr><td>${a}</td><td>${b}</td><td>${c}</td><td class="l">${d}</td></tr>`).join("");
+  const pre=PRESETS.find(q=>same(st.p,q)),vname=pre?pre.name:"eigene Einstellung",expl=T>=5?"wie 4 Jahre, keine Option":"aus Eurex-Optionen, Verfall Dez. "+(2026+T);
+  const dir=p.daily?"am Tagesschluss geprüft (wie im Termsheet)":"jederzeit geprüft (Brownsche Brücke zwischen den Tagen)";
+  el.innerHTML=`
+    <h3 class="hd mchd"><span>Monte-Carlo-Simulation · ${fN(n)} Pfade · ${r.N} Tagesschritte · Seed ${prm.seed} · ${r.sec.toFixed(1)} s</span><button class="btn mctog" type="button" id="mctog" aria-controls="mcbody" aria-expanded="${mc.open}">${mc.open?"▲ Analyse ausblenden":"▼ Analyse einblenden"}</button></h3>
+    <div class="mcbody" id="mcbody"${mc.open?"":" hidden"}>
+    <div class="mcass">
+      <div><b>Annahmen dieses Laufs</b> · Variante «${vname}», alle Einstellungen von oben</div>
+      <div><span>Produkt</span>Kapitalschutz ${fP(p.KS)} · ${T} Jahre · Korridor ${fP(p.L)} bis ${fP(p.U)} · Beteiligung ${fP(p.Pu)} rauf / ${fP(p.Pd)} runter · Trostpreis ${p.R>0?fP(p.R,1):"keiner"}</div>
+      <div><span>Markt (Laufzeit ${T} Jahre)</span>SMI ${fN(MKT.S0)} · Vola ${fP(V.sigma,2)} · Dividende ${fP(V.q,2)} (${expl}) · Zins ${fP(rCont(T),2)} · Spread ${fP(MKT.spread,2)} · Risikoprämie ${fP(MKT.erp,0)}</div>
+      <div><span>Anlage und Steuer</span>${fC(Am)} · Grenzsteuersatz ${fP(st.tax,0)} · steuerbarer Zinsanteil ${fC(Am*p.taxable)} · Steuer ${fC(Am*tx)}</div>
+      <div class="mcnote">Modell: geometrische Brownsche Bewegung mit konstanter Vola. Preis risikoneutral (Drift r − q), Erwartung real (zusätzlich Risikoprämie), beide mit denselben Zufallszahlen. Grenzen ${dir}. Ändert man eine Einstellung, verschwindet das Ergebnis und die Simulation muss neu gestartet werden.</div>
+    </div>
+    <div><div class="mctitle">1. Stimmt der Preis? Monte Carlo gegen Formel</div>
+      <div class="scroll"><table class="mct"><thead><tr><th>Grösse (in % vom Nominal)</th><th>Monte Carlo</th><th>Standardfehler</th><th>95 %-Intervall</th><th>Formel</th><th>Abstand</th></tr></thead><tbody>${trs}</tbody></table></div>
+      <div class="mcnote">Der Standardfehler ist die Streuung geteilt durch √n: mit 4-mal so vielen Pfaden halbiert er sich. «Abstand» zeigt, wie viele Standardfehler die Formel vom Monte-Carlo-Wert entfernt liegt; bis ±2.5 gilt als Übereinstimmung.</div></div>
+    <div><div class="mctitle">2. Was ist zu erwarten? Reale Welt, bei Anlage ${fC(Am)}</div>
+      <div class="scroll"><table class="mct"><thead><tr><th>Kennzahl</th><th>Vor Steuern</th><th>Nach Steuern</th><th class="l">Bemerkung</th></tr></thead><tbody>${kvh}</tbody></table></div></div>
+    <div class="mcgrid">
+      <div class="card"><div class="mctitle">Konvergenz: Marge der Bank</div>${mcChartConv(r,p)}<div class="mcnote">Linie: Schätzung nach n Pfaden. Band: 95 %-Intervall. Gestrichelt: Formel.</div></div>
+      <div class="card"><div class="mctitle">Verteilung der Rückzahlung</div>${mcChartPay(r,p,Am)}<div class="mcnote">${fP(pko,1)} der Pfade berühren eine Grenze und erhalten ${fC(Am*(p.KS+p.R))} (nicht im Bild). Gezeigt sind die übrigen ${fP(1-pko,1)}.</div></div>
+      <div class="card"><div class="mctitle">Wann wird eine Grenze berührt?</div>${mcChartKo(r,p)}<div class="leg"><span><b class="sw" style="background:#C55A11"></b>untere Grenze berührt</span><span><b class="sw" style="background:repeating-linear-gradient(135deg,#C55A11 0 2px,#fff 2px 5px);border:1px solid #C55A11"></b>obere Grenze berührt</span></div><div class="mcnote">Anteil aller Pfade je Halbjahr, reale Welt.</div></div>
+    </div>
+    </div>`;
+}
+$("mc").addEventListener("click",e=>{const b=e.target.closest("#mctog");if(!b)return;mc.open=!mc.open;$("mcbody").hidden=!mc.open;b.setAttribute("aria-expanded",mc.open);b.textContent=mc.open?"▲ Analyse ausblenden":"▼ Analyse einblenden"});
+
+/* ---------------- Start ---------------- */
+sync(); render();
+</script>
+
+</body></html>
